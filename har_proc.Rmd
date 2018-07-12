@@ -1,0 +1,77 @@
+---
+title: "HAR_Processing"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libary_load}
+library(dplyr)
+library(caret)
+library(randomForest)
+```
+## Load and Clean the dataset
+Data contains raw input as well as partially processed(Through temporal aggregation) variable. Partially processed variables may not serve our purpose due to inadequate documentation of process of generation. We will remove all these variables and also variable that do not add value (e.g. User Name, Date and Time stamps)
+```{r}
+tr <- read.csv("pml-training.csv", na.strings = c("NA","","#DIV/0!"), header = TRUE)
+ts <- read.csv("pml-testing.csv", na.strings = c("NA","","#DIV/0!"), header = TRUE)
+```
+
+## Exploratory data analysis
+Looking for NA terms in columns and removing them through select operation of dplyr.
+Further reading on the database indicate column 1:7 are not readings but details on user, time of experiments etc. We can remove them from pure readings.
+```{R}
+x <- apply(tr,2,FUN = function(x){sum(is.na(x)) == 0})
+tr <- tr %>% select(which(x)) %>% select(-(1:7))
+ts <- ts %>% select(which(x)) %>% select(-(1:7))
+```
+
+Preparing for machine learing by partitioning the data in Training and Validation sets.
+We will be using the training set to find the model and right parameters. We will be using the val_set to determine OOB.
+  
+```{R}
+set.seed(1234)
+in_train <- createDataPartition(tr$classe, p = 0.7, list=FALSE)
+train_set <- tr[in_train,]
+val_set <- tr[-in_train,]
+```
+
+## Model Fitting
+We keep number of parameters in each tree to default i.e. sqrt(number of parameters)
+Since we have ~50 variables, ~7 variables per try should give us good accuracy.
+ntree is set to 20 to keep high accuracy at reasonable compute time.
+  
+  
+```{R}
+mod1 <- randomForest(classe ~ ., data=train_set, ntree = 20)
+print(mod1)
+```
+OOB estimate of error rate is 1.75% this is good.
+   
+## Teating the model on Validation Data
+```{R}
+output <- predict(mod1, val_set)
+confusionMatrix(output, val_set$classe)
+```
+We get accuracy of 99.34% which is very high. P-Value < 2.2*10^(-16) is very low and indicate high statistical significance.
+  
+  
+## Conclusion
+We have achieved a very good model through above mechanism. Whenever new data has to be tested against this model one should use following transformations
+ts <- read.csv("pml-testing.csv", na.strings = c("NA","","#DIV/0!"), header = TRUE)
+also remove following columns
+  
+```{R}
+print(which(x))
+print(1:7)
+```
+  
+Let us now run the prediction on test data set provided
+```{R}
+ts <- read.csv("pml-testing.csv", na.strings = c("NA","","#DIV/0!"), header = TRUE)
+ts <- ts %>% select(which(x)) %>% select(-(1:7))
+output1 <- predict(mod1, ts)
+print(output1)
+```
